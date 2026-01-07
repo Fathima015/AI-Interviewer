@@ -1,20 +1,83 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+#  AI Medical Assistant (Rajagiri Hospital Bot)
 
-# Run and deploy your AI Studio app
+A full-stack AI-powered medical appointment booking system featuring both a **Text Chatbot** and a **Voice Assistant**. The system uses Google's Gemini AI to understand symptoms, check doctor availability dynamically, and book appointments with sentiment analysis.
 
-This contains everything you need to run your app locally.
+## ✨ Features
 
-View your app in AI Studio: https://ai.studio/apps/temp/1
+### 🤖 Intelligent Chatbot
+* **Symptom Verification:** Asks relevant questions to understand patient condition.
+* **Doctor Availability:** Fetches real-time slots from a backend database (`doctors.json`).
+* **Sentiment Analysis:** Analyzes user emotion (e.g., Anxious, Neutral, Negative) during the conversation.
+* **Secure Booking:** Saves appointment details only after explicit confirmation.
 
-## Run Locally
+### 🎙️ Voice Assistant
+* **Hands-Free Booking:** Full voice-to-voice interaction using the Web Speech API.
+* **Multi-Language Support:** Supports English and Malayalam (Manglish).
+* **Dynamic Response:** Speaks back to the user using browser-native text-to-speech.
+* **Real-time Transcription:** Displays the conversation log as it happens.
 
-**Prerequisites:**  Node.js
+### ⚙️ Backend System
+* **Conversation Logging:** Separately logs text and voice chat transcripts for review.
+* **Appointment Management:** Saves confirmed bookings to `appointments.json`.
+* **Dynamic Scheduling:** Admins can update `doctors.json` to instantly change available slots.
 
+---
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 🛠️ Tech Stack
+
+* **Frontend:** React, TypeScript, Tailwind CSS
+* **Backend:** Node.js, Express.js
+* **AI Model:** Google Gemini 3 pro preview
+* **Database:** JSON-based local storage (NoSQL style)
+
+---
+
+## 🚀 Getting Started
+
+### 1. Prerequisites
+* Node.js installed (v16 or higher).
+* A Google Gemini API Key.
+
+### 2. Installation
+
+**Clone the repository:**
+```bash
+git clone [https://github.com/YOUR_USERNAME/rajagiri-ai-bot.git](https://github.com/YOUR_USERNAME/rajagiri-ai-bot.git)
+cd rajagiri-ai-bot
+
+# Install Backend Dependencies:
+
+Bash
+
+cd backend
+npm install
+
+# Install Frontend Dependencies:
+
+Bash
+
+# Go back to root
+cd ..
+npm install
+3. Configuration
+Create a .env file in the root directory and add your API key:
+
+Code snippet
+
+VITE_GEMINI_API_KEY=your_google_gemini_api_key_here
+🏃‍♂️ How to Run
+You need to run the Backend and Frontend in two separate terminals.
+
+Terminal 1: Start Backend
+
+Bash
+
+cd backend
+node server.js
+# Server will start on http://localhost:4000
+Terminal 2: Start Frontend
+
+Bash
+
+npm run dev
+# App will run on http://localhost:5173 (usually)
