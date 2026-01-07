@@ -5,9 +5,9 @@
     "lastUpdated": "2026-01-07T05:29:24.849Z",
     "type": "text-chat",
     "transcript": [
-      "ASSISTANT: Hello! I'm Puck, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
+      "ASSISTANT: Hello! I'm Medibot, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
       "USER: i want to book an appointment",
-      "ASSISTANT: Hello! I am Puck, your medical assistant. I would be happy to help you schedule an appointment.\n\nTo get started, could you please provide your **full name** and **phone number**?",
+      "ASSISTANT: Hello! I am Medibot, your medical assistant. I would be happy to help you schedule an appointment.\n\nTo get started, could you please provide your **full name** and **phone number**?",
       "USER: Riya Thomas, 9087654321",
       "ASSISTANT: Thank you, Riya. I have noted your contact details.\n\nHow can I assist you today? Please let me know your symptoms or which department you would like to consult with.",
       "USER: general medicine, sevier fewer",
@@ -20,7 +20,7 @@
     "lastUpdated": "2026-01-07T05:40:23.903Z",
     "type": "text-chat",
     "transcript": [
-      "ASSISTANT: Hello! I'm Puck, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
+      "ASSISTANT: Hello! I'm Medibot, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
       "USER: im having fever'",
       "ASSISTANT: I'm sorry to hear that you're experiencing a fever. It's important to monitor your temperature and take appropriate measures to manage it.\n\nIf your fever is high (above 103°F or 39.4°C) or accompanied by severe symptoms such as a stiff neck, severe headache, difficulty breathing, confusion, or seizures, seek immediate medical attention.\n\nIf your fever is mild and you don't have any concerning symptoms, you can try to manage it at home by:\n\n*   Getting plenty of rest\n*   Drinking fluids to stay hydrated\n*   Taking over-the-counter fever reducers like acetaminophen (Tylenol) or ibuprofen (Advil) as directed\n\nIf your fever persists for more than a few days or if you have any other concerning symptoms, please see a doctor.\n\nWould you like help finding a doctor near you?\n",
       "USER: i wan to book an appointment with the general medicine",
@@ -43,7 +43,7 @@
     "lastUpdated": "2026-01-07T05:47:47.550Z",
     "type": "text-chat",
     "transcript": [
-      "ASSISTANT: Hello! I'm Puck, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
+      "ASSISTANT: Hello! I'm Medibot, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
       "USER: im having fever",
       "ASSISTANT: I understand you're experiencing a fever. At Rajagiri Hospital, we have experienced general physicians who can help. Would you like to book an appointment?\n",
       "USER: yes i want to book an appoint ment for today",
@@ -60,7 +60,7 @@
     "lastUpdated": "2026-01-07T05:52:43.523Z",
     "type": "text-chat",
     "transcript": [
-      "ASSISTANT: Hello! I'm Puck, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
+      "ASSISTANT: Hello! I'm Medibot, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
       "USER: my name is Remya, and i feel chest pain",
       "ASSISTANT: I'm sorry to hear that you're experiencing chest pain, Remya. That can be quite concerning. I recommend that you consult with a doctor as soon as possible. Would you like me to help you book an appointment with a Cardiologist at Rajagiri Hospital?\n",
       "USER: yes thankyou",
@@ -85,7 +85,7 @@
     "lastUpdated": "2026-01-07T06:07:28.103Z",
     "type": "text-chat",
     "transcript": [
-      "ASSISTANT: Hello! I'm Puck, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
+      "ASSISTANT: Hello! I'm Medibot, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
       "USER: head ache",
       "ASSISTANT: I am sorry to hear you are experiencing a headache. I can help you book an appointment with a neurologist at Rajagiri Hospital. Can I get your name and phone number, please?\n",
       "USER: no chest pain",
@@ -120,7 +120,7 @@
     "lastUpdated": "2026-01-07T06:33:49.682Z",
     "type": "text-chat",
     "transcript": [
-      "ASSISTANT: Hello! I'm Puck, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
+      "ASSISTANT: Hello! I'm Medibot, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
       "USER: is there any doctors avoilable at cardiology department tomorrow?",
       "ASSISTANT: Yes, Dr. Emily is available in the Cardiology department tomorrow at 11:00 AM. Would you like to book an appointment for that time?\n",
       "USER: at 1pm?",
@@ -145,11 +145,22 @@
     "lastUpdated": "2026-01-07T06:34:35.320Z",
     "type": "text-chat",
     "transcript": [
-      "ASSISTANT: Hello! I'm Puck, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
+      "ASSISTANT: Hello! I'm Medibot, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
       "USER: is there any slot awailable for pediatrics tomorrow?",
       "ASSISTANT: Yes, Dr. Anna is available at 10:30 AM tomorrow for Pediatrics. Would you like to book this appointment?\n",
       "USER: is there any slot for today?",
       "ASSISTANT: I am sorry, there are no available slots for today. Would you like to check for tomorrow?\n"
+    ]
+  },
+  {
+    "sessionId": "1767778269259",
+    "startTime": "2026-01-07T09:31:13.835Z",
+    "lastUpdated": "2026-01-07T09:31:13.835Z",
+    "type": "text-chat",
+    "transcript": [
+      "ASSISTANT: Hello! I'm Medibot, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
+      "USER: help",
+      "ASSISTANT: I am Medibot, Rajagiri Hospital's AI assistant. How can I help you?\n"
     ]
   }
 ]

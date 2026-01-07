@@ -13,7 +13,7 @@ const Chatbot: React.FC = () => {
     {
       id: '1',
       role: 'assistant',
-      text: "Hello! I'm Puck, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
+      text: "Hello! I'm Medibot, your medical assistant. I can help verify symptoms and check doctor availability. How are you feeling?",
       timestamp: new Date()
     }
   ]);
@@ -50,7 +50,7 @@ const Chatbot: React.FC = () => {
     };
     fetchDoctors();
   }, []);
-  
+
   const saveChatTranscript = async (currentMessages: ChatMessage[]) => {
     try {
       await fetch('http://localhost:4000/log-conversation', { 
@@ -103,7 +103,7 @@ const Chatbot: React.FC = () => {
 
       const model = genAI.getGenerativeModel({ 
         model: "gemini-2.0-flash-exp", 
-        systemInstruction: `You are Puck, a helpful AI medical assistant for Rajagiri Hospital. 
+        systemInstruction: `You are Medibot, a helpful AI medical assistant for Rajagiri Hospital. 
         
         CONTEXT:
         - Today's Date: ${todayStr}
@@ -165,7 +165,7 @@ const Chatbot: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
       <div className="bg-slate-50 p-4 border-b border-slate-200 flex justify-between items-center">
-        <h2 className="text-lg font-bold text-red-700 flex items-center gap-2"><i className="fa-solid fa-user-doctor"></i> Dr. Puck</h2>
+        <h2 className="text-lg font-bold text-red-700 flex items-center gap-2"><i className="fa-solid fa-user-doctor"></i> Dr. Medibot</h2>
         <span className="text-xs font-semibold text-green-600 bg-green-100 px-2 py-1 rounded-full">Online</span>
       </div>
       <div ref={scrollRef} className="flex-grow overflow-y-auto p-4 space-y-4">
@@ -174,7 +174,7 @@ const Chatbot: React.FC = () => {
             <div className={`p-3 rounded-2xl text-sm max-w-[85%] shadow-sm ${msg.role === 'user' ? 'bg-red-700 text-white rounded-tr-none' : 'bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200'}`}>{msg.text}</div>
           </div>
         ))}
-        {isTyping && <div className="p-4 text-xs text-slate-400">Puck is typing...</div>}
+        {isTyping && <div className="p-4 text-xs text-slate-400">Medibot is typing...</div>}
       </div>
       <div className="p-4 bg-slate-50 border-t border-slate-200">
         <div className="relative flex items-center gap-2">
