@@ -32,7 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
           />
           <NavItem 
             icon="fa-comments" 
-            label="Symptom Chat" 
+            label="Chat Bot" 
             active={activeTab === AppTab.HEALTH_CHAT} 
             onClick={() => onTabChange(AppTab.HEALTH_CHAT)} 
           />

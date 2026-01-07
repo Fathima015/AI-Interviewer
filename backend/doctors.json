@@ -1,0 +1,70 @@
+{
+  "slots": [
+    {
+      "doctor": "Dr. Smith",
+      "department": "General Medicine",
+      "date": "2026-01-08",
+      "time": "10:00 AM"
+    },
+    {
+      "doctor": "Dr. Jones",
+      "department": "General Medicine",
+      "date": "2026-01-08",
+      "time": "02:00 PM"
+    },
+    {
+      "doctor": "Dr. Roy",
+      "department": "General Medicine",
+      "date": "2026-01-09",
+      "time": "11:00 AM"
+    },
+    {
+      "doctor": "Dr. Emily",
+      "department": "Cardiology",
+      "date": "2026-01-08",
+      "time": "09:00 AM"
+    },
+    {
+      "doctor": "Dr. Haris",
+      "department": "Cardiology",
+      "date": "2026-01-09",
+      "time": "04:00 PM"
+    },
+    {
+      "doctor": "Dr. Anna",
+      "department": "Pediatrics",
+      "date": "2026-01-08",
+      "time": "10:30 AM"
+    },
+    {
+      "doctor": "Dr. George",
+      "department": "Pediatrics",
+      "date": "2026-01-09",
+      "time": "01:00 PM"
+    },
+    {
+      "doctor": "Dr. Kumar",
+      "department": "Orthopedics",
+      "date": "2026-01-08",
+      "time": "11:00 AM"
+    },
+    {
+      "doctor": "Dr. Silva",
+      "department": "Neurology",
+      "date": "2026-01-09",
+      "time": "03:00 PM"
+    },
+    {
+      "doctor": "Dr. White",
+      "department": "Dermatology",
+      "date": "2026-01-08",
+      "time": "09:30 AM"
+    },
+    {
+      "doctor": "Dr. Lakshmi",
+      "department": "ENT",
+      "date": "2026-01-08",
+      "time": "12:00 PM"
+    }
+  ]
+}

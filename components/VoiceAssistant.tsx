@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenerativeAI, SchemaType, type Tool, type ChatSession } from '@google/generative-ai';
-import { time } from 'console';
 
-// --- TYPE DEFINITIONS ---
+// --- INTERFACES ---
 interface AppointmentDetails {
   patientName: string;
   department: string;
@@ -12,19 +11,15 @@ interface AppointmentDetails {
 }
 
 // --- TOOL DEFINITIONS ---
-
-// Tool 1: Check Availability
 const getDoctorAvailabilityTool: Tool = {
   functionDeclarations: [
     {
       name: 'get_doctor_availability',
-      description: 'Check if a doctor/department is available. Call this when user asks for a slot.',
+      description: 'Get the list of available doctor slots for a specific department.',
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
-          department: { type: SchemaType.STRING, description: 'Medical department' },
-          doctorName: { type: SchemaType.STRING, description: 'Doctor name (optional)' },
-          date: { type: SchemaType.STRING, description: 'Requested date' },
+          department: { type: SchemaType.STRING, description: 'Medical department (e.g. General, Cardiology)' },
         },
         required: ['department'],
       },
@@ -32,12 +27,11 @@ const getDoctorAvailabilityTool: Tool = {
   ]
 };
 
-// Tool 2: Confirm & Book (Triggers Save + Sentiment Analysis)
 const confirmAppointmentTool: Tool = {
   functionDeclarations: [
     {
       name: 'confirm_appointment',
-      description: 'Call this ONLY when the user explicitly agrees to book the appointment.',
+      description: 'Finalize the booking. REQUIRED: You must have a specific time slot selected by the user before calling this.',
       parameters: {
         type: SchemaType.OBJECT,
         properties: {
@@ -45,7 +39,7 @@ const confirmAppointmentTool: Tool = {
           department: { type: SchemaType.STRING, description: 'Department booked' },
           doctorName: { type: SchemaType.STRING, description: 'Doctor name' },
           symptoms: { type: SchemaType.STRING, description: 'Patient symptoms' },
-          timeSlot: { type: SchemaType.STRING, description: 'Confirmed time slot' },
+          timeSlot: { type: SchemaType.STRING, description: 'The specific time slot selected (e.g. "10:00 AM")' },
         },
         required: ['patientName', 'department', 'symptoms', 'timeSlot'],
       },
@@ -59,14 +53,33 @@ const VoiceAssistant: React.FC = () => {
   const [transcription, setTranscription] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [language, setLanguage] = useState<'en-US' | 'ml-IN'>('en-US');
+  
+  // Doctor Slots State
+  const [doctorSlots, setDoctorSlots] = useState<any[]>([]);
 
-  // Refs
   const chatSessionRef = useRef<ChatSession | null>(null);
   const recognitionRef = useRef<any>(null);
-  // We use a ref for transcription history to ensure the analyzer gets the absolute latest data without state lag
   const historyRef = useRef<string[]>([]);
+  const sessionIdRef = useRef(Date.now().toString());
 
-  // 1. SETUP SPEECH RECOGNITION
+  // 1. FETCH DOCTORS ON MOUNT
+  const refreshDoctors = async () => {
+    try {
+      const res = await fetch('http://localhost:4000/doctors');
+      const data = await res.json();
+      setDoctorSlots(data.slots || []);
+      return data.slots || [];
+    } catch (err) {
+      console.error("Error loading doctors:", err);
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    refreshDoctors();
+  }, []);
+
+  // 2. SETUP SPEECH RECOGNITION
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -74,114 +87,88 @@ const VoiceAssistant: React.FC = () => {
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = false;
       recognitionRef.current.lang = language;
-
-      recognitionRef.current.onresult = (event: any) => {
-        const text = event.results[0][0].transcript;
-        handleStandardVoiceInput(text);
-      };
-
+      recognitionRef.current.onresult = (event: any) => handleStandardVoiceInput(event.results[0][0].transcript);
       recognitionRef.current.onend = () => setIsListening(false);
-      recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech recognition error', event.error);
-        setIsListening(false);
-        setStatus('Error listening');
-      };
     }
-    window.speechSynthesis.getVoices();
   }, [language]);
 
-  // 2. TEXT-TO-SPEECH HANDLER
+  // 3. TEXT-TO-SPEECH
   const speak = (text: string) => {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     const voices = window.speechSynthesis.getVoices();
-    
-    let selectedVoice = null;
-    if (language === 'ml-IN') {
-      selectedVoice = voices.find(v => v.lang === 'ml-IN') || voices.find(v => v.lang === 'en-IN');
-    } else {
-      selectedVoice = voices.find(v => v.name.includes('Google') && v.lang === 'en-IN') || voices.find(v => v.lang === 'en-IN');
-    }
-
+    let selectedVoice = language === 'ml-IN' 
+        ? (voices.find(v => v.lang === 'ml-IN') || voices.find(v => v.lang === 'en-IN')) 
+        : (voices.find(v => v.name.includes('Google') && v.lang === 'en-IN') || voices.find(v => v.lang === 'en-IN'));
     if (selectedVoice) utterance.voice = selectedVoice;
-    utterance.rate = 0.9; 
-    utterance.pitch = 1.0; 
     window.speechSynthesis.speak(utterance);
   };
 
-  // --- HELPER: SENTIMENT ANALYZER ---
+  // 4. SAVE APPOINTMENT
   const analyzeAndSave = async (details: AppointmentDetails) => {
-    setStatus('Analyzing Sentiment...');
+    setStatus('Finalizing...');
+    
+    // Attempt Sentiment Analysis (Non-blocking)
+    let sentimentData = { sentiment: 'Neutral', confidence: 0.5 };
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      const genAI = new GoogleGenerativeAI(apiKey);
+      const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: 'gemini-3-pro-preview' });
-
-      // Create a prompt with the full conversation history
-      const fullConversation = historyRef.current.join('\n');
-      const prompt = `
-        Analyze the sentiment of the Patient in the following conversation.
-        Return ONLY a JSON object: { "sentiment": "Happy|Neutral|Anxious|Angry", "confidence": 0.0 to 1.0 }
-        
-        Conversation:
-        ${fullConversation}
-      `;
-
+      const prompt = `Analyze sentiment: ${historyRef.current.join('\n')}. Return JSON { "sentiment": "...", "confidence": 0.0 }`;
       const result = await model.generateContent(prompt);
-      const text = result.response.text();
-      const cleanJson = text.replace(/```json|```/g, '').trim();
-      
-      // FIXED: Using standard JSON object
-      const sentimentData = JSON.parse(cleanJson);
+      sentimentData = JSON.parse(result.response.text().replace(/```json|```/g, '').trim());
+    } catch (e) { console.warn("Sentiment skipped"); }
 
-      // --- SAVE TO BACKEND ---
-      await fetch('http://localhost:4000/log-appointment', {
+    try {
+      // Save to Backend
+      const response = await fetch('http://localhost:4000/log-appointment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...details,
-          sentiment: sentimentData.sentiment,
-          confidence: sentimentData.confidence
-        })
+        body: JSON.stringify({ ...details, ...sentimentData, source: 'voice' })
       });
-
-      console.log("SAVED:", details, sentimentData);
-      return sentimentData;
-
-    } catch (e) {
-      console.error("Analysis Failed", e);
-      return { sentiment: 'Unknown', confidence: 0 };
-    }
+      if (response.ok) setStatus('Saved!');
+    } catch (e) { console.error("Save failed", e); }
   };
 
-  // 3. MAIN AI LOGIC
+  // 5. SAVE TRANSCRIPT
+  const saveVoiceTranscript = async (currentHistory: string[]) => {
+    try {
+      await fetch('http://localhost:4000/log-voice-conversation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: sessionIdRef.current, messages: currentHistory })
+      });
+    } catch (e) { console.error("Transcript save failed", e); }
+  };
+
+  // 6. MAIN AI LOGIC
   const handleStandardVoiceInput = async (text: string) => {
-    // Update State & Ref
     const userMsg = `You: ${text}`;
     setTranscription(prev => [...prev, userMsg]);
     historyRef.current.push(userMsg);
-
     setIsProcessing(true);
     setStatus('Thinking...');
 
     try {
       if (!chatSessionRef.current) {
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-        const genAI = new GoogleGenerativeAI(apiKey);
-        
+        const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+        const todayStr = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
         const model = genAI.getGenerativeModel({ 
           model: 'gemini-3-pro-preview', 
           systemInstruction: `You are Puck, a hospital booking assistant.
-            1. Ask for Patient Name, Symptoms, and Department.
-            2. Check availability using 'get_doctor_availability'.
-            3. Once the user says YES to a slot, you MUST use 'confirm_appointment' to finalize it.
+            TODAY IS: ${todayStr}.
             
-            OUTPUT FORMAT:
-            Reply in strictly valid JSON:
-            {
-              "text": "Screen text",
-              "speech": "Voice text (use Manglish if Malayalam is requested)"
-            }`,
+            STRICT RULES:
+            1. STEP 1: Ask for Patient Name and Symptoms.
+            2. STEP 2: Ask for Department.
+            3. STEP 3: Call 'get_doctor_availability' to see slots.
+            4. STEP 4: READ the available slots to the user (e.g., "Dr Smith at 10 AM").
+            5. STEP 5: WAIT for the user to pick a specific time.
+            6. STEP 6: Call 'confirm_appointment' ONLY after the user picks a time.
+            
+            DO NOT confirm an appointment if the user hasn't selected a time slot.
+            
+            Output JSON: { "text": "...", "speech": "..." }`,
           tools: [getDoctorAvailabilityTool, confirmAppointmentTool],
         });
 
@@ -195,89 +182,78 @@ const VoiceAssistant: React.FC = () => {
       let displayReply = "";
       let speechReply = "";
 
-      // --- HANDLE TOOLS ---
       if (functionCalls && functionCalls.length > 0) {
         const call = functionCalls[0];
         const args = call.args as any;
 
-        // CHECK AVAILABILITY
         if (call.name === 'get_doctor_availability') {
-          // Mock response from "database"
-          const functionResponse = {
-            result: `Available slots for ${args.department}: Tomorrow 10 AM with Dr. Smith or 2 PM with Dr. Jones.`
-          };
+          // Refresh slots just in case
+          const currentSlots = await refreshDoctors();
+          const reqDept = args.department ? args.department.toLowerCase() : '';
           
-          // Send result back to Gemini so it can tell the user
-          const nextResult = await chatSessionRef.current.sendMessage(
-            JSON.stringify(functionResponse)
+          const relevantSlots = currentSlots.filter((s: any) => 
+            s.department.toLowerCase().includes(reqDept) || reqDept.includes(s.department.toLowerCase())
           );
-          const nextResponse = nextResult.response.text();
           
-          try {
-            const parsed = JSON.parse(nextResponse.replace(/```json|```/g, '').trim());
-            displayReply = parsed.text;
-            speechReply = parsed.speech;
-          } catch {
-            displayReply = nextResponse;
-            speechReply = nextResponse;
-          }
-        }
-        
-        // CONFIRM & ANALYZE
+          const finalSlots = relevantSlots.length > 0 ? relevantSlots : currentSlots;
+
+          const slotString = finalSlots.map((s: any) => {
+             // Robust Date Handling
+             let dateStr = s.date || s.day; // Fallback to 'day' if 'date' missing
+             if (s.date && !isNaN(Date.parse(s.date))) {
+                 dateStr = new Date(s.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+             }
+             return `${dateStr} at ${s.time} with ${s.doctor}`;
+          }).join(', or ');
+
+          const toolResult = { result: `Found slots: ${slotString || 'None'}. Ask user to pick one.` };
+          
+          const nextResult = await chatSessionRef.current.sendMessage(JSON.stringify(toolResult));
+          const parsed = JSON.parse(nextResult.response.text().replace(/```json|```/g, '').trim());
+          displayReply = parsed.text;
+          speechReply = parsed.speech;
+        } 
         else if (call.name === 'confirm_appointment') {
-          displayReply = `Appointment Confirmed for ${args.patientName}. Details have been saved.`;
-          speechReply = "Your appointment is confirmed. I have saved your details.";
+          displayReply = `Confirmed: ${args.doctorName} at ${args.timeSlot}.`;
+          speechReply = `I have booked your appointment with ${args.doctorName} for ${args.timeSlot}.`;
           
-          // Trigger Background Analysis & Save
-          analyzeAndSave({
+          await analyzeAndSave({
              patientName: args.patientName,
              department: args.department,
              doctorName: args.doctorName || 'General',
              symptoms: args.symptoms,
-            timeSlot: args.timeSlot
+             timeSlot: args.timeSlot
           });
         }
-
       } else {
-        // STANDARD REPLY
-        const rawText = response.text();
-        try {
-          const cleanJson = rawText.replace(/```json|```/g, '').trim();
-          const parsed = JSON.parse(cleanJson);
-          displayReply = parsed.text;
-          speechReply = parsed.speech;
-        } catch (e) {
-          displayReply = rawText;
-          speechReply = rawText;
-        }
+        const parsed = JSON.parse(response.text().replace(/```json|```/g, '').trim());
+        displayReply = parsed.text;
+        speechReply = parsed.speech;
       }
 
-      // Update UI & Speak
       const botMsg = `Puck: ${displayReply}`;
       setTranscription(prev => [...prev, botMsg]);
       historyRef.current.push(botMsg);
-      
       speak(speechReply);
       setStatus('Ready');
+      await saveVoiceTranscript(historyRef.current);
 
     } catch (err) {
       console.error(err);
-      setStatus('API Error');
-      speak("I'm sorry, I encountered an error. Please try again.");
+      setStatus('Error');
+      speak("I'm sorry, something went wrong. Please say that again.");
     } finally {
       setIsProcessing(false);
     }
   };
 
   const toggleListening = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-    } else {
+    if (isListening) recognitionRef.current?.stop();
+    else {
       window.speechSynthesis.cancel();
-      recognitionRef.current.lang = language; 
       recognitionRef.current?.start();
       setIsListening(true);
-      setStatus(language === 'ml-IN' ? 'ശ്രദ്ധിക്കുന്നു...' : 'Listening...');
+      setStatus('Listening...');
     }
   };
 
@@ -285,82 +261,28 @@ const VoiceAssistant: React.FC = () => {
     <div className="flex flex-col h-full p-6 md:p-10 bg-white">
       <div className="max-w-4xl mx-auto w-full flex flex-col h-full">
         <header className="mb-8 flex justify-between items-start border-b border-slate-100 pb-6">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <div className="w-8 h-8 bg-red-700 rounded-lg flex items-center justify-center text-white text-xs">
-                <i className="fas fa-plus"></i>
-              </div>
-              <h2 className="text-2xl font-bold text-slate-900">Rajagiri Voice Assistant</h2>
-            </div>
-            <p className="text-slate-500 text-sm">Powered by Gemini 1.5 Flash</p>
+          <div className="flex items-center gap-3">
+             <div className="w-8 h-8 bg-red-700 rounded-lg flex items-center justify-center text-white"><i className="fas fa-plus"></i></div>
+             <h2 className="text-2xl font-bold text-slate-900">Rajagiri Voice Assistant</h2>
           </div>
-          
-          <button 
-            onClick={() => {
-                const newLang = language === 'en-US' ? 'ml-IN' : 'en-US';
-                setLanguage(newLang);
-                chatSessionRef.current = null;
-                setTranscription([]); 
-                historyRef.current = [];
-            }}
-            className="px-4 py-2 bg-slate-100 rounded-full text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors border border-slate-200"
-          >
-            <i className="fas fa-language mr-2"></i>
-            {language === 'en-US' ? 'English' : 'മലയാളം'}
-          </button>
         </header>
-
         <div className="flex-grow flex flex-col items-center justify-center mb-8">
-          <div className={`relative w-60 h-60 rounded-full flex items-center justify-center transition-all duration-500 ${
-            isListening ? 'bg-red-600 shadow-[0_0_60px_-10px_rgba(220,38,38,0.3)]' : 'bg-slate-50 border border-slate-200'
-          }`}>
-            <button
-              onClick={toggleListening}
-              disabled={isProcessing}
-              className={`w-40 h-40 rounded-full flex flex-col items-center justify-center text-white transition-all transform active:scale-95 shadow-xl ${
-                isListening ? 'bg-slate-900' : 'bg-red-700 hover:bg-red-800'
-              }`}
-            >
-              {isProcessing ? (
-                <i className="fas fa-spinner fa-spin text-3xl"></i>
-              ) : (
-                <>
-                   <i className={`fas ${isListening ? 'fa-stop' : 'fa-microphone'} text-3xl mb-3`}></i>
-                   <span className="text-[10px] font-bold uppercase tracking-widest">
-                     {isListening ? 'Stop' : (language === 'ml-IN' ? 'സംസാരിക്കൂ' : 'Talk')}
-                   </span>
-                </>
-              )}
+          <div className={`relative w-60 h-60 rounded-full flex items-center justify-center ${isListening ? 'bg-red-600 shadow-xl' : 'bg-slate-50 border'}`}>
+            <button onClick={toggleListening} disabled={isProcessing} className={`w-40 h-40 rounded-full text-white ${isListening ? 'bg-slate-900' : 'bg-red-700'}`}>
+              {isProcessing ? <i className="fas fa-spinner fa-spin text-3xl"></i> : <i className={`fas ${isListening ? 'fa-stop' : 'fa-microphone'} text-3xl`}></i>}
             </button>
           </div>
-          <div className="mt-8">
-            <div className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-sm border ${
-              isListening ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 text-slate-400 border-slate-200'
-            }`}>
-              {status}
-            </div>
-          </div>
+          <div className="mt-8 px-5 py-2 rounded-full text-xs font-bold uppercase tracking-widest border">{status}</div>
         </div>
-
-        <div className="bg-slate-50 rounded-[2rem] p-6 border border-slate-200 h-64 overflow-y-auto flex flex-col-reverse shadow-inner scrollbar-hide">
+        <div className="bg-slate-50 rounded-[2rem] p-6 border h-64 overflow-y-auto flex flex-col-reverse">
           <div className="space-y-4">
             {transcription.map((t, i) => (
               <div key={i} className={`flex ${t.startsWith('You:') ? 'justify-end' : 'justify-start'}`}>
-                <div className={`p-4 rounded-2xl text-xs leading-relaxed max-w-[85%] shadow-sm ${
-                  t.startsWith('You:') 
-                    ? 'bg-red-700 text-white rounded-tr-none' 
-                    : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'
-                }`}>
+                <div className={`p-4 rounded-2xl text-xs max-w-[85%] ${t.startsWith('You:') ? 'bg-red-700 text-white' : 'bg-white border'}`}>
                   {t.replace(/^(Puck:|You:)\s*/, '')}
                 </div>
               </div>
             ))}
-            {transcription.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center opacity-20 py-10">
-                <i className="fas fa-wave-square text-2xl mb-2"></i>
-                <p className="text-[10px] font-bold uppercase">Click talk to begin</p>
-              </div>
-            )}
           </div>
         </div>
       </div>
