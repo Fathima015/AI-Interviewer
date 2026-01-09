@@ -1,230 +1,116 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenerativeAI, SchemaType, type Tool, type ChatSession } from '@google/generative-ai';
 
-// --- INTERFACES ---
-interface AppointmentDetails {
-  patientName: string;
-  department: string;
-  doctorName: string;
-  symptoms: string;
-  timeSlot: string;
-}
+// --- TYPES ---
+type InterviewerPersona = 'ALEX' | 'DIVYA';
 
 // --- TOOLS ---
-const getDoctorAvailabilityTool: Tool = {
+const submitInterviewTool: Tool = {
   functionDeclarations: [{
-    name: 'get_doctor_availability',
-    description: 'Get doctor slots.',
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: { department: { type: SchemaType.STRING } },
-      required: ['department'],
-    },
-  }]
-};
-
-const confirmAppointmentTool: Tool = {
-  functionDeclarations: [{
-    name: 'confirm_appointment',
-    description: 'Finalize booking. REQUIRED when user selects a time slot.',
+    name: 'submit_interview',
+    description: 'Submit final score.',
     parameters: {
       type: SchemaType.OBJECT,
       properties: {
-        patientName: { type: SchemaType.STRING },
-        department: { type: SchemaType.STRING },
-        doctorName: { type: SchemaType.STRING },
-        symptoms: { type: SchemaType.STRING },
-        timeSlot: { type: SchemaType.STRING },
+        candidateName: { type: SchemaType.STRING },
+        score: { type: SchemaType.NUMBER },
+        feedback: { type: SchemaType.STRING },
       },
-      required: ['patientName', 'department', 'symptoms', 'timeSlot'],
+      required: ['candidateName', 'score', 'feedback'],
     },
   }]
 };
 
 const VoiceAssistant: React.FC = () => {
+  const [persona, setPersona] = useState<InterviewerPersona>('DIVYA'); 
   const [isListening, setIsListening] = useState(false);
-  const [status, setStatus] = useState<string>('Divya is ready');
+  const [status, setStatus] = useState<string>('Ready');
   const [transcription, setTranscription] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [language, setLanguage] = useState<'en-US' | 'ml-IN'>('en-US'); 
-  
-  const [doctorSlots, setDoctorSlots] = useState<any[]>([]);
+  const [liveText, setLiveText] = useState<string>(""); 
+
   const chatSessionRef = useRef<ChatSession | null>(null);
   const recognitionRef = useRef<any>(null);
   const historyRef = useRef<string[]>([]);
+  const finalBufferRef = useRef<string>("");
+  const interimBufferRef = useRef<string>(""); 
+  const messagesEndRef = useRef<HTMLDivElement>(null); 
+  
+  // *** CRITICAL: Generate Session ID once on load ***
   const sessionIdRef = useRef(Date.now().toString());
 
-  // 1. PLAY AUDIO
-  const playBase64Audio = (base64String: string) => {
+  // --- LOGGING ---
+  const logToTerminal = async (role: string, message: string) => {
     try {
-      const binaryString = window.atob(base64String);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      const blob = new Blob([bytes], { type: 'audio/wav' });
-      const audio = new Audio(URL.createObjectURL(blob));
-      audio.play();
-      audio.onended = () => setStatus('Ready');
-    } catch (e) {
-      console.error("Audio Playback Error:", e);
-      setStatus('Error');
-    }
+      await fetch('http://localhost:4000/log-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            sessionId: sessionIdRef.current, // Send the ID
+            role, 
+            message 
+        })
+      });
+    } catch (e) { console.error(e); }
   };
 
-  // 2. SPEAK FUNCTION (Switched to 'arya')
+  const scrollToBottom = () => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); };
+  useEffect(() => { scrollToBottom(); }, [transcription, isProcessing, liveText]);
+
+  useEffect(() => {
+     chatSessionRef.current = null;
+     setTranscription([]);
+     historyRef.current = [];
+     setStatus(persona === 'ALEX' ? 'Alex Ready' : 'Divya Ready');
+  }, [persona]);
+
   const speak = async (text: string) => {
     if (!text) return;
     window.speechSynthesis.cancel();
     setStatus('Speaking...');
-
-    const sarvamKey = import.meta.env.VITE_SARVAM_API_KEY;
-
-    if (sarvamKey) {
-        try {
-            const response = await fetch("https://api.sarvam.ai/text-to-speech", {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json", 
-                    "api-subscription-key": sarvamKey 
-                },
-                body: JSON.stringify({
-                    text: text, 
-                    target_language_code: language === 'ml-IN' ? "ml-IN" : "en-IN",
-                    // --- VOICE SET TO ARYA ---
-                    speaker: "arya", 
-                    pitch: 0, 
-                    pace: 1.0, 
-                    loudness: 1.5, 
-                    speech_sample_rate: 16000,
-                    enable_preprocessing: true 
-                }),
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data?.audios?.[0]) {
-                    playBase64Audio(data.audios[0]);
-                    return;
-                }
-            }
-        } catch (e) { console.error("Sarvam Exception:", e); }
-    }
-
-    // FALLBACK
     const utterance = new SpeechSynthesisUtterance(text);
     const voices = window.speechSynthesis.getVoices();
-    const femaleVoice = voices.find(v => v.name.includes('Google') || v.name.includes('Zira'));
-    if (femaleVoice) utterance.voice = femaleVoice;
-    utterance.onend = () => setStatus('Ready');
+    if (persona === 'DIVYA') {
+        const female = voices.find(v => v.name.includes('Female') || v.name.includes('Google US English'));
+        if (female) utterance.voice = female;
+    } else {
+        const male = voices.find(v => v.name.includes('Male') || v.name.includes('David'));
+        if (male) utterance.voice = male;
+    }
+    utterance.rate = 1.0;
+    utterance.onend = () => setStatus('Waiting for answer...');
     window.speechSynthesis.speak(utterance);
   };
 
-  // 3. DOCTOR DATA
-  const refreshDoctors = async () => {
-    try {
-      const res = await fetch('http://localhost:4000/doctors');
-      const data = await res.json();
-      setDoctorSlots(data.slots || []);
-      return data.slots || [];
-    } catch (err) { return []; }
-  };
-  useEffect(() => { refreshDoctors(); window.speechSynthesis.getVoices(); }, []);
-
-  // 4. SPEECH RECOGNITION
-  useEffect(() => {
-    if (recognitionRef.current) recognitionRef.current.abort();
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.lang = language;
-      recognition.onresult = (e: any) => handleStandardVoiceInput(e.results[0][0].transcript);
-      recognition.onend = () => setIsListening(false);
-      recognitionRef.current = recognition;
-    }
-  }, [language]);
-
-  // FIX: ROBUST SAVE FUNCTION
-  const analyzeAndSave = async (details: AppointmentDetails) => {
-    console.log("📝 DIVYA IS SAVING:", details); 
-    setStatus('Saving...');
-    try {
-      const response = await fetch('http://localhost:4000/log-appointment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...details, source: 'voice' })
-      });
-      
-      if (response.ok) {
-          console.log("✅ Saved!");
-          setStatus('Saved!');
-      } else {
-          console.error("❌ Save Failed");
-          setStatus('Save Error');
-      }
-    } catch (e) { 
-        console.error("❌ Network Error", e); 
-        setStatus('Net Error');
-    }
-  };
-
-  // 5. MAIN AI LOGIC
-  const handleStandardVoiceInput = async (text: string) => {
+  const processResponse = async (text: string) => {
     const userMsg = `You: ${text}`;
     setTranscription(prev => [...prev, userMsg]);
-    historyRef.current.push(userMsg);
-    
     setIsProcessing(true);
     setStatus('Thinking...');
 
     try {
       const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
-      const todayStr = new Date().toLocaleDateString();
+      
+      const baseInstructions = `
+          GOAL: Conduct a 3-question TECHNICAL interview for an **AI Engineer**.
+          FORMAT: Plain text only. NO markdown.
+          FLOW: Name -> Q1 -> Q2 -> Q3 -> Score.
+      `;
 
-      // --- DIVYA PERSONA + NATURAL MALAYALAM ---
-      const systemPrompt = `SYSTEM: You are Divya, a hospital receptionist in Kerala. 
-      Today: ${todayStr}.
-      CURRENT MODE: ${language === 'ml-IN' ? 'MALAYALAM (മലയാളം)' : 'ENGLISH'}.
-      
-      CRITICAL FLOW:
-      1. FIRST: Introduce yourself ("Namaskaram, I am Divya") and ASK FOR USER'S NAME.
-      2. Do NOT proceed without the name.
-      3. Return JSON: { "text": "...", "speech": "..." }
-      
-      LANGUAGE RULES (MALAYALAM MODE):
-      - Use **Conversational Malayalam** (Manglish style but in Malayalam script).
-      - Use English words for technical terms but write them in Malayalam script.
-      - Example: "അപ്പോയിന്റ്മെന്റ്" instead of "കൂടിക്കാഴ്ച".
-      - Example: "ഡോക്ടർ" instead of "വൈദ്യൻ".
-      
-      Output JSON Only.`;
+      let systemPrompt = persona === 'DIVYA' 
+        ? `SYSTEM: You are "Divya", supportive AI Researcher. ${baseInstructions}`
+        : `SYSTEM: You are "Alex", strict MLOps Lead. ${baseInstructions}`;
 
       if (!chatSessionRef.current) {
-         try {
-             const model = genAI.getGenerativeModel({ 
-                model: 'gemini-2.0-flash-exp', 
-                systemInstruction: systemPrompt,
-                tools: [getDoctorAvailabilityTool, confirmAppointmentTool],
-             });
-             chatSessionRef.current = model.startChat({ history: [] });
-         } catch(e) { console.log("Init Error"); }
-      }
-
-      let result;
-      try {
-         result = await chatSessionRef.current.sendMessage(text);
-      } catch (firstError: any) {
-         console.warn("Gemini 2.0 failed. Switching to Gemini 1.5 Pro.", firstError);
-         const fallbackModel = genAI.getGenerativeModel({ 
-            model: 'gemini-1.5-pro', 
-            tools: [getDoctorAvailabilityTool, confirmAppointmentTool],
+         const model = genAI.getGenerativeModel({ 
+            model: 'gemini-2.0-flash-exp', 
+            systemInstruction: systemPrompt,
+            tools: [submitInterviewTool],
          });
-         chatSessionRef.current = fallbackModel.startChat({ history: [] });
-         await chatSessionRef.current.sendMessage(systemPrompt);
-         result = await chatSessionRef.current.sendMessage(text);
+         chatSessionRef.current = model.startChat({ history: [] });
       }
 
+      const result = await chatSessionRef.current.sendMessage(text);
       const response = await result.response;
       const functionCalls = response.functionCalls();
 
@@ -234,41 +120,18 @@ const VoiceAssistant: React.FC = () => {
       if (functionCalls && functionCalls.length > 0) {
         const call = functionCalls[0];
         const args = call.args as any;
-        
-        if (call.name === 'get_doctor_availability') {
-          const slots = await refreshDoctors();
-          const reqDept = args.department ? args.department.toLowerCase() : '';
-          const relevant = slots.filter((s: any) => s.department.toLowerCase().includes(reqDept));
-          const slotStr = relevant.map((s:any) => `${s.time} with ${s.doctor}`).join(', ');
-          
-          const toolRes = { result: `Slots found: ${slotStr}.` };
-          
-          const nextRes = await chatSessionRef.current.sendMessage(
-             `Here is data: ${JSON.stringify(toolRes)}. Explain in ${language === 'ml-IN' ? 'MALAYALAM' : 'ENGLISH'}. Use casual conversational style.`
-          );
-          const parsed = JSON.parse(nextRes.response.text().replace(/```json|```/g, '').trim());
-          displayReply = parsed.text;
-          speechReply = parsed.speech;
-        } 
-        else if (call.name === 'confirm_appointment') {
-          console.log("🤖 DIVYA IS BOOKING...", args); 
-          
-          displayReply = `Confirmed: ${args.doctorName}`;
-          speechReply = language === 'ml-IN' 
-             ? `ശരി ${args.patientName}, ${args.doctorName}-യുമായുള്ള അപ്പോയിന്റ്മെന്റ് ബുക്ക് ചെയ്തിട്ടുണ്ട്.` 
-             : `Done. Booking confirmed for ${args.patientName}.`;
-          
-          // FORCE SAVE
-          await analyzeAndSave({
-             patientName: args.patientName,
-             department: args.department,
-             doctorName: args.doctorName || 'General',
-             symptoms: args.symptoms,
-             timeSlot: args.timeSlot
-          });
+        if (call.name === 'submit_interview') {
+           const cleanFeedback = args.feedback.replace(/\*\*/g, '');
+           displayReply = `✅ Score: ${args.score}/10\n${cleanFeedback}`;
+           speechReply = `Thank you. Score: ${args.score}. ${cleanFeedback}`;
+           await fetch('http://localhost:4000/save-interview', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(args)
+           });
         }
       } else {
-        const textResponse = response.text().replace(/```json|```/g, '').trim();
+        const textResponse = response.text().replace(/```json|```|\*\*/g, '').trim();
         try {
             const parsed = JSON.parse(textResponse);
             displayReply = parsed.text;
@@ -279,17 +142,12 @@ const VoiceAssistant: React.FC = () => {
         }
       }
 
-      const botMsg = `Divya: ${displayReply}`;
+      const assistantName = persona === 'ALEX' ? 'Alex' : 'Divya';
+      const botMsg = `${assistantName}: ${displayReply}`;
+      
+      await logToTerminal(assistantName, displayReply);
       setTranscription(prev => [...prev, botMsg]);
-      historyRef.current.push(botMsg);
-      
       await speak(speechReply);
-      
-      await fetch('http://localhost:4000/log-voice-conversation', {
-        method: 'POST', 
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ sessionId: sessionIdRef.current, messages: historyRef.current })
-      });
 
     } catch (err) {
       console.error(err);
@@ -299,9 +157,52 @@ const VoiceAssistant: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (recognitionRef.current) recognitionRef.current.abort();
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true; 
+      recognition.interimResults = true; 
+      recognition.lang = 'en-IN'; 
+      recognition.onresult = (e: any) => {
+        let finalChunk = '';
+        let interimChunk = '';
+        for (let i = e.resultIndex; i < e.results.length; ++i) {
+          if (e.results[i].isFinal) finalChunk += e.results[i][0].transcript;
+          else interimChunk += e.results[i][0].transcript;
+        }
+        if (finalChunk) finalBufferRef.current += finalChunk + " ";
+        interimBufferRef.current = interimChunk;
+        setLiveText(finalBufferRef.current + interimBufferRef.current);
+      };
+      recognition.onerror = (e: any) => { if (e.error !== 'no-speech') setIsListening(false); };
+      recognitionRef.current = recognition;
+    }
+  }, []);
+
+  const handleStopAndSubmit = async () => {
+    recognitionRef.current?.stop();
+    setIsListening(false);
+    const fullText = (finalBufferRef.current + interimBufferRef.current).trim();
+    if (fullText) {
+        await logToTerminal("Candidate", fullText);
+        await processResponse(fullText);
+        finalBufferRef.current = ""; 
+        interimBufferRef.current = ""; 
+        setLiveText("");
+    }
+  };
+
   const toggleListening = () => {
-    if (isListening) recognitionRef.current?.stop();
-    else { window.speechSynthesis.cancel(); recognitionRef.current?.start(); setIsListening(true); setStatus('Listening...'); }
+    if (isListening) handleStopAndSubmit();
+    else {
+        window.speechSynthesis.cancel();
+        finalBufferRef.current = ""; interimBufferRef.current = ""; setLiveText("");
+        recognitionRef.current?.start();
+        setIsListening(true);
+        setStatus('Listening...');
+    }
   };
 
   return (
@@ -309,35 +210,42 @@ const VoiceAssistant: React.FC = () => {
       <div className="max-w-4xl mx-auto w-full flex flex-col h-full">
         <header className="mb-8 flex justify-between items-center border-b border-slate-100 pb-6">
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 bg-red-700 rounded-lg flex items-center justify-center text-white"><i className="fas fa-plus"></i></div>
-             <h2 className="text-2xl font-bold text-slate-900">Divya (Rajagiri Assistant)</h2>
+             <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white text-xl ${persona === 'DIVYA' ? 'bg-indigo-600' : 'bg-slate-800'}`}>
+                <i className="fas fa-brain"></i>
+             </div>
+             <h2 className="text-2xl font-bold text-slate-900">{persona === 'DIVYA' ? 'Divya (AI)' : 'Alex (MLOps)'}</h2>
           </div>
-          <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200">
-            <button onClick={() => setLanguage('en-US')} className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${language === 'en-US' ? 'bg-white text-red-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-              English
-            </button>
-            <button onClick={() => setLanguage('ml-IN')} className={`px-4 py-2 text-sm font-bold rounded-md transition-all ${language === 'ml-IN' ? 'bg-white text-red-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-              Malayalam
-            </button>
+          <div className="flex bg-slate-100 p-1 rounded-lg">
+             <button onClick={() => setPersona('DIVYA')} className={`px-4 py-2 text-sm font-bold rounded-md ${persona === 'DIVYA' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}>Divya</button>
+             <button onClick={() => setPersona('ALEX')} className={`px-4 py-2 text-sm font-bold rounded-md ${persona === 'ALEX' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Alex</button>
           </div>
         </header>
+
         <div className="flex-grow flex flex-col items-center justify-center mb-8">
-          <div className={`relative w-60 h-60 rounded-full flex items-center justify-center ${isListening ? 'bg-red-600 shadow-xl' : 'bg-slate-50 border'}`}>
-            <button onClick={toggleListening} disabled={isProcessing} className={`w-40 h-40 rounded-full text-white ${isListening ? 'bg-slate-900' : 'bg-red-700'}`}>
-              {isProcessing ? <i className="fas fa-spinner fa-spin text-3xl"></i> : <i className={`fas ${isListening ? 'fa-stop' : 'fa-microphone'} text-3xl`}></i>}
+          <div className={`relative w-48 h-48 rounded-full flex items-center justify-center transition-all duration-300 ${isListening ? (persona === 'DIVYA' ? 'bg-indigo-100' : 'bg-slate-200') + ' scale-110' : 'bg-slate-50 border'}`}>
+            <button onClick={toggleListening} disabled={isProcessing} className={`w-32 h-32 rounded-full text-white shadow-lg flex items-center justify-center ${isProcessing ? 'bg-slate-400' : isListening ? (persona === 'DIVYA' ? 'bg-indigo-600 animate-pulse' : 'bg-slate-800 animate-pulse') : 'bg-slate-800'}`}>
+              <i className={`fas ${isProcessing ? 'fa-circle-notch fa-spin' : (isListening ? 'fa-paper-plane' : 'fa-microphone')} text-3xl`}></i>
             </button>
           </div>
-          <div className="mt-8 px-5 py-2 rounded-full text-xs font-bold uppercase tracking-widest border">{status}</div>
+          <div className="mt-8 text-center min-h-[60px]">
+             <div className="px-6 py-2 rounded-full text-xs font-bold uppercase tracking-widest border bg-slate-50 text-slate-600 mb-2 inline-block">{status}</div>
+             {isListening && (<p className="text-lg font-medium max-w-2xl mx-auto mt-2 text-indigo-700">"{liveText}"</p>)}
+          </div>
         </div>
-        <div className="bg-slate-50 rounded-[2rem] p-6 border h-64 overflow-y-auto flex flex-col-reverse">
-          <div className="space-y-4">
-            {transcription.map((t, i) => (
-              <div key={i} className={`flex ${t.startsWith('You:') ? 'justify-end' : 'justify-start'}`}>
-                <div className={`p-4 rounded-2xl text-xs max-w-[85%] ${t.startsWith('You:') ? 'bg-red-700 text-white' : 'bg-white border'}`}>
-                  {t.replace(/^(Divya:|You:)\s*/, '')}
+
+        <div className="bg-slate-50 rounded-2xl p-6 border h-80 overflow-y-auto shadow-inner flex flex-col">
+          <div className="flex flex-col gap-2">
+            {transcription.map((t, i) => {
+               const isUser = t.startsWith('You:');
+               return (
+                <div key={i} className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`px-4 py-3 text-sm whitespace-pre-wrap shadow-sm max-w-[80%] rounded-2xl ${isUser ? (persona === 'DIVYA' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-800 text-white rounded-tr-none') : 'bg-white border text-slate-700 rounded-tl-none'}`}>
+                     <span className="block text-[10px] font-bold opacity-50 uppercase mb-1">{isUser ? 'Candidate' : (persona === 'DIVYA' ? 'Divya' : 'Alex')}</span>
+                     {t.replace(/^(Alex:|Divya:|You:)\s*/, '')}
+                  </div>
                 </div>
-              </div>
-            ))}
+            )})}
+            <div ref={messagesEndRef} />
           </div>
         </div>
       </div>

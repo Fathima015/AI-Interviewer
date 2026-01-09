@@ -21,8 +21,8 @@ dist-ssr
 *.local
 
 # Backend data (DO NOT COMMIT)
-backend/appointments.csv
-
+backend/interviews.json
+backend/chat_history.json
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

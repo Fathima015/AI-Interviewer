@@ -1,7 +1,7 @@
 
 {
-  "name": "Rajagiri Hospital Assistant",
-  "description": "Voice-powered medical assistant for Rajagiri Hospital, Aluva. Helping patients book appointments and get hospital information.",
+  "name": "AI Interview Bot",
+  "description": "Voice-powered AI Interview Bot that conducts interviews using speech recognition and synthesis.",
   "requestFramePermissions": [
     "microphone"
   ]

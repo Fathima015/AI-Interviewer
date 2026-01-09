@@ -1,0 +1,46 @@
+[
+  {
+    "sessionId": "1767869567157",
+    "timestamp": "2026-01-08T10:52:49.996Z",
+    "conversation": [
+      {
+        "role": "Candidate",
+        "message": "hello"
+      },
+      {
+        "role": "Divya",
+        "message": "Hello, I am Divya. I will be conducting your AI Engineer interview today. Please tell me your name."
+      },
+      {
+        "role": "Candidate",
+        "message": "hi thank you"
+      },
+      {
+        "role": "Divya",
+        "message": "Great. Please tell me your name so we can begin."
+      }
+    ]
+  },
+  {
+    "sessionId": "1767872696992",
+    "timestamp": "2026-01-08T11:45:00.349Z",
+    "conversation": [
+      {
+        "role": "Candidate",
+        "message": "hello"
+      },
+      {
+        "role": "Divya",
+        "message": "Hi there! I'm Divya, and I'll be conducting your AI Engineer interview today. Can you please tell me your name?"
+      },
+      {
+        "role": "Candidate",
+        "message": "thank you"
+      },
+      {
+        "role": "Divya",
+        "message": "You're welcome! But first, please provide your name so we can start the interview."
+      }
+    ]
+  }
+]
